@@ -27,14 +27,14 @@ class UsbFilePicker extends StatefulWidget {
 
 class _UsbFilePickerState extends State<UsbFilePicker> {
   static const platform = MethodChannel('usb_path_reader/usb');
-  String? _selectedPath = '/RECORD'; // Set the static path here
+  String? _selectedPath = '/RECORD';
   String? _usbPath;
   List<String> _audioFiles = [];
   AudioPlayer _audioPlayer = AudioPlayer();
   bool _isPlaying = false;
   String? _currentPlayingFile;
   bool _isUsbConnected = false;
-  Timer? _timer; // Timer for periodic USB connection checks
+  Timer? _timer;
 
   @override
   void initState() {
@@ -43,18 +43,16 @@ class _UsbFilePickerState extends State<UsbFilePicker> {
     if (_selectedPath != null) {
       _listAudioFiles(_selectedPath!);
     }
-    _checkUsbConnection(); // Initial check for USB connection
-    _startUsbConnectionCheck(); // Start checking USB connection every 1 second
+    _checkUsbConnection();
+    _startUsbConnectionCheck();
   }
 
-  // Start periodic check for USB connection every 1 second
   void _startUsbConnectionCheck() {
     _timer = Timer.periodic(Duration(seconds: 1), (_) {
-      _checkUsbConnection(); // Check USB connection status every 1 second
+      _checkUsbConnection();
     });
   }
 
-  // Check if the USB is connected by verifying the path.
   void _checkUsbConnection() async {
     try {
       String? usbPath = await platform.invokeMethod('getUsbPath');
@@ -73,15 +71,18 @@ class _UsbFilePickerState extends State<UsbFilePicker> {
     }
 
     if (Platform.isAndroid && await Permission.manageExternalStorage.isDenied) {
-      await Permission.manageExternalStorage.request();
+      var status = await Permission.manageExternalStorage.request();
+      if (!status.isGranted) {
+        print("Manage External Storage permission denied!");
+      }
     }
   }
 
   void _listAudioFiles(String path) async {
     try {
       final directory = Directory(path);
-      if (directory.existsSync()) {
-        final files = directory.listSync(recursive: true, followLinks: false);
+      if (await directory.exists()) {
+        final files = directory.listSync();
         final audioFiles = files.where((file) {
           final extension = file.path.split('.').last.toLowerCase();
           return ['mp3', 'wav', 'aac'].contains(extension);
@@ -93,7 +94,7 @@ class _UsbFilePickerState extends State<UsbFilePicker> {
 
         print('Audio Files Found: ${audioFiles.length}');
       } else {
-        print('Directory does not exist!');
+        print('Directory does not exist: $path');
       }
     } catch (e) {
       print('Error listing files: $e');
@@ -109,7 +110,6 @@ class _UsbFilePickerState extends State<UsbFilePicker> {
     }
   }
 
-  // Function to handle play/pause for audio files
   Future<void> _playPauseAudio(String filePath) async {
     if (_isPlaying && _currentPlayingFile == filePath) {
       await _audioPlayer.pause();
@@ -125,7 +125,6 @@ class _UsbFilePickerState extends State<UsbFilePicker> {
     }
   }
 
-  // Function to stop the audio
   Future<void> _stopAudio() async {
     await _audioPlayer.stop();
     setState(() {
@@ -135,7 +134,7 @@ class _UsbFilePickerState extends State<UsbFilePicker> {
 
   @override
   void dispose() {
-    _timer?.cancel(); // Cancel the timer when the widget is disposed
+    _timer?.cancel();
     _audioPlayer.dispose();
     super.dispose();
   }
@@ -148,7 +147,6 @@ class _UsbFilePickerState extends State<UsbFilePicker> {
       appBar: AppBar(title: Text('USB Drive Audio Files')),
       body: Column(
         children: [
-          // USB status container at the top
           Container(
             padding: EdgeInsets.all(10),
             color: _isUsbConnected ? Colors.green : Colors.red,
@@ -168,7 +166,6 @@ class _UsbFilePickerState extends State<UsbFilePicker> {
               ],
             ),
           ),
-          // Show the selected path in one container
           Container(
             padding: EdgeInsets.all(10),
             color: Colors.lightBlueAccent,
@@ -182,24 +179,16 @@ class _UsbFilePickerState extends State<UsbFilePicker> {
               ],
             ),
           ),
-          // Show the current USB path in another container
           Container(
             padding: EdgeInsets.all(10),
             color: Colors.orangeAccent,
             child: Text('Current USB Path: $_usbPath'),
           ),
-          // Show the combined path
-          Container(
-            padding: EdgeInsets.all(10),
-            color: Colors.greenAccent,
-            child: Text('Combined Path: $combinedPath'),
-          ),
-          if (combinedPath!= null) ...[
+          if (_usbPath != null)
             ElevatedButton(
-              onPressed: () => _listAudioFiles(combinedPath!),
+              onPressed: () => _listAudioFiles(combinedPath),
               child: Text('Refresh Audio Files'),
             ),
-          ],
           Expanded(
             child: _audioFiles.isEmpty
                 ? Center(child: Text('No audio files found.'))
@@ -213,7 +202,8 @@ class _UsbFilePickerState extends State<UsbFilePicker> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
-                              icon: Icon(_isPlaying && _currentPlayingFile == _audioFiles[index]
+                              icon: Icon(_isPlaying &&
+                                      _currentPlayingFile == _audioFiles[index]
                                   ? Icons.pause
                                   : Icons.play_arrow),
                               onPressed: () {
@@ -222,9 +212,7 @@ class _UsbFilePickerState extends State<UsbFilePicker> {
                             ),
                             IconButton(
                               icon: Icon(Icons.stop),
-                              onPressed: () {
-                                _stopAudio();
-                              },
+                              onPressed: _stopAudio,
                             ),
                           ],
                         ),
